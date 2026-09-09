@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {wallet,earned,redeem} from '../lib/loyalty.mjs';
+const b={id:'visit',phone:'0500000000',name:'تجربة',date:'2026-09-09',total:1000,paid:1000,status:'completed'};
+const d={records:[],bookings:[b]};
+assert.equal(earned({...b,status:'cancelled'}),0);assert.equal(earned({...b,paid:0}),0);assert.equal(earned({...b,status:'confirmed'}),0);
+assert.equal(wallet(d.bookings,d.records,b.phone).tier.name,'زهرة');
+const req={phone:b.phone,reward:'glow',requestId:'unique-request-1'};redeem(d,req);redeem(d,req);assert.equal(d.records.length,1);assert.equal(wallet(d.bookings,d.records,b.phone).balance,100);assert.equal(wallet(d.bookings,d.records,b.phone).tier.name,'زهرة');
+assert.throws(()=>redeem(d,{...req,requestId:'unique-request-2'}));assert.throws(()=>redeem(d,{...req,reward:'hands'}));assert.throws(()=>redeem(d,{...req,phone:'0500000001',requestId:'unique-request-3'}));
+assert.equal(wallet(d.bookings,d.records,b.phone).ledger.length,2);assert.equal(wallet(d.bookings,d.records,'0500000001').balance,0);
+console.log('PASS loyalty: paid completion, levels, idempotency, insufficient funds, identity separation, ledger.');

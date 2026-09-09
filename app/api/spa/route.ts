@@ -1,3 +1,4 @@
+import {rewards} from '@/lib/loyalty.mjs';
 import {isAdmin,salonTenant} from '@/lib/access';
 import {createBooking} from '@/lib/booking';
 import {seed} from '@/lib/seed';
@@ -8,7 +9,14 @@ const json=(data:any,status=200)=>Response.json(data,{status,headers:{'Cache-Con
 async function identity(){return await isAdmin()?salonTenant():null}
 export async function GET(){const t=await identity();if(!t)return json({error:'لوحة الإدارة مخصصة لحساب مالكة المحل.'},403);await seed(t);const [rs,bs]=await Promise.all([db().prepare('SELECT * FROM records WHERE tenant=?').bind(t).all(),db().prepare('SELECT * FROM bookings WHERE tenant=? ORDER BY date DESC,time ASC').bind(t).all()]);return json({records:rs.results.map((r:any)=>({...JSON.parse(r.data),kind:r.kind})),bookings:bs.results.map((b:any)=>({...b,tenant:undefined,services:JSON.parse(b.services),preferences:JSON.parse(b.preferences)}))})}
 export async function POST(req:Request){const t=await identity();if(!t)return json({error:'ليس لديك صلاحية إدارة المحل.'},403);if(req.headers.get('origin')&&req.headers.get('origin')!==new URL(req.url).origin)return json({error:'طلب غير مسموح'},403);let body:any;try{body=await req.json()}catch{return json({error:'طلب غير صالح'},400)}
-try{if(body.action==='book')return createBooking(t,body);
+try{if(body.action==='redeem'){
+const reward=rewards.find(r=>r.id===body.reward);if(!reward||!/^05\d{8}$/.test(body.phone)||!/^[-a-zA-Z0-9]{10,80}$/.test(body.requestId))return json({error:'بيانات مكافأة غير صالحة'},400);
+const id='loyalty-'+body.requestId;const existing:any=await db().prepare("SELECT data FROM records WHERE tenant=? AND id=? AND kind='loyalty_redemption'").bind(t,id).first();if(existing){const r=JSON.parse(existing.data);return r.phone===body.phone&&r.reward===reward.id?json(r):json({error:'طلب متعارض'},409)}
+const row={id,kind:'loyalty_redemption',phone:body.phone,reward:reward.id,name:reward.name,cost:reward.cost,created:new Date().toISOString()};
+const result=await db().prepare(`INSERT OR IGNORE INTO records (tenant,id,kind,data) SELECT ?,?,'loyalty_redemption',? WHERE (SELECT COALESCE(SUM(CAST(total AS INTEGER)),0) FROM bookings WHERE tenant=? AND phone=? AND status='completed' AND paid>=total) - (SELECT COALESCE(SUM(json_extract(data,'$.cost')),0) FROM records WHERE tenant=? AND kind='loyalty_redemption' AND json_extract(data,'$.phone')=?) >= ?`).bind(t,id,JSON.stringify(row),t,body.phone,t,body.phone,reward.cost).run();
+if(!result.meta.changes)return json({error:'الرصيد غير كافٍ أو سبق تنفيذ الطلب. حدّثي الصفحة.'},409);return json(row);
+}
+if(body.action==='book')return createBooking(t,body);
 if(body.action==='status'){
 if(!['confirmed','arrived','completed','cancelled','no_show'].includes(body.status))return json({error:'حالة غير صالحة'},400);const b:any=await db().prepare('SELECT * FROM bookings WHERE tenant=? AND id=?').bind(t,body.id).first();if(!b)return json({error:'الحجز غير موجود'},404);if(b.paid>0&&['cancelled','no_show'].includes(body.status))return json({error:'يوجد مبلغ محصّل. عالجي الاسترداد مع المحل قبل إلغاء الحجز.'},409);if(['cancelled','completed','no_show'].includes(b.status))return json({error:'الحجز مغلق ولا يمكن تعديل حالته.'},409);const qs=[db().prepare('UPDATE bookings SET status=? WHERE tenant=? AND id=? AND status=? AND (?=0 OR paid=0)').bind(body.status,t,body.id,b.status,['cancelled','no_show'].includes(body.status)?1:0)];if(['cancelled','no_show'].includes(body.status))qs.push(db().prepare("DELETE FROM slots WHERE tenant=? AND booking=? AND EXISTS (SELECT 1 FROM bookings WHERE tenant=? AND id=? AND status IN ('cancelled','no_show'))").bind(t,body.id,t,body.id));const changed=await db().batch(qs);if(!changed[0].meta.changes)return json({error:'تغير الحجز أثناء التحديث. أعيدي تحميله.'},409);return json({ok:true})}
 if(body.action==='pay'){const r=await db().prepare("UPDATE bookings SET paid=total WHERE tenant=? AND id=? AND status NOT IN ('cancelled','no_show') AND paid=0").bind(t,body.id).run();if(!r.meta.changes)return json({error:'الحجز مدفوع مسبقًا أو ملغي.'},409);return json({ok:true})}
