@@ -10,9 +10,9 @@ def req(body=None,auth=True):
 def check(v,msg):
  assert v,msg
  print('PASS:',msg)
-check(req(auth=False)[0]==401,'Anonymous records rejected')
+check(req(auth=False)[0]==403,'Anonymous records rejected')
 check(req()[0]==200,'Catalog loads')
-date=(datetime.datetime.now()+datetime.timedelta(days=30)).strftime('%Y-%m-%d')
+date=(datetime.datetime.now()+datetime.timedelta(days=45)).strftime('%Y-%m-%d')
 b={'action':'book','name':'عميلة اختبار','phone':'0500000000','date':date,'time':'14:00','staff':'e1','serviceIds':['s1'],'total':1,'preferences':{'quiet':True}}
 check(req({**b,'phone':'abc'})[0]==400,'Phone validation')
 check(req({**b,'date':'2026-99-99'})[0]==400,'Invalid calendar date rejected')
@@ -34,6 +34,6 @@ check(req({'action':'status','id':id,'status':'arrived'})[0]==200,'Arrival recor
 check(req({'action':'status','id':id,'status':'completed'})[0]==200,'Visit completed')
 check(req({'action':'status','id':id,'status':'confirmed'})[0]==409,'Closed booking cannot reopen')
 check(req({'action':'save','kind':'product','data':{'name':'اختبار','stock':-1,'price':10,'min':5}})[0]==400,'Negative inventory rejected')
-for route in ['/','/book','/staff']:
- with urllib.request.urlopen('http://localhost:3000'+route) as response:check(response.status==200,'Route renders '+route)
+for route in ['/','/book','/admin','/staff']:
+ with urllib.request.urlopen(urllib.request.Request('http://localhost:3000'+route,headers={'Cookie':'__sites_local_auth=1'})) as response:check(response.status==200,'Route renders '+route)
 print('All local integration checks passed. Test bookings exist only in the local database.')

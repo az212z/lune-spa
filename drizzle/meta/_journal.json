@@ -8,6 +8,13 @@
       "when": 1788936858950,
       "tag": "0000_curly_vapor",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1788938174476,
+      "tag": "0001_wealthy_switch",
+      "breakpoints": true
     }
   ]
 }

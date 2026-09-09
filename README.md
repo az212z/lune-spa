@@ -3,23 +3,33 @@
 Private Arabic spa-management review application, built with Vinext, React, Cloudflare Workers and D1.
 
 ## Surfaces
-- `/`: owner review dashboard, bookings, client records, services, staff, manual collections, inventory, reports, waitlist, marketing drafts, competitor comparison and settings.
-- `/book`: client booking experience and booking history.
-- `/staff`: staff-view preview within the owner's review account.
+- `/` and `/book`: public customer booking, with no account required and no administration link.
+- `/admin`: management dashboard, restricted server-side to the configured owner email.
+- `/staff`: owner-protected staff workspace preview.
+- `/api/public`: public catalog and guest booking creation only.
+- `/api/public/receipt`: minimal single-booking read-back using a high-entropy receipt token.
+- `/api/spa`: owner-only management API.
+
+All surfaces use one configured salon tenant in D1. A customer booking appears in the management dashboard; the dashboard polls every 15 seconds and the private customer receipt polls every 20 seconds. Existing records in the configured owner tenant are preserved.
 
 ## Implemented
-Durable D1 records; account-scoped queries; server-calculated service pricing; room and staff reservations in atomic batches; 15-minute cleanup buffer; concurrent-conflict handling; booking cancellation; arrival/completion; manual payment acknowledgement with duplicate protection; preferences for quiet and fragrance-free sessions; editable catalog/team/inventory; CSV export; reports from persisted data.
+Durable D1 records; server-enforced owner authorization; anonymous guest booking; server-calculated pricing; atomic room/staff reservations and 15-minute cleanup buffers; concurrency checks; cancellations and manual collection; preferences; editable catalog/team/inventory; CSV and reports. Guest receipt secrets are hashed in the database, and public catalog responses exclude private records. Guest creation and receipt lookups are rate-limited.
+
+## Hosting and GitHub
+The code repository is private. The live site is publicly hosted on Sites; no sign-in is required for customer pages or booking. Admin pages require the owner's ChatGPT identity. GitHub rejected enabling Pages for the private repository because the current account plan does not support it (HTTP 422). A manually triggered Pages workflow and static customer build are provided for optional future use if private-repository Pages becomes available. No GitHub Pages deployment is claimed.
+
+Runtime configuration (set through the hosting provider, never committed):
+- `SPA_ADMIN_EMAIL`: owner's verified sign-in email.
+- `SPA_TENANT_ID`: shared salon tenant, preserving the owner's existing data.
+- `PUBLIC_CUSTOMER_ORIGIN`: optional allowed static frontend origin.
 
 ## Release boundary
-This is a private functional first version, not a commercially launched salon system. Each signed-in account owns its isolated review data. Customer and staff pages preview workflows in that account, not separately authorized commercial roles. Keep the site owner-private. A public rollout needs salon-scoped customer identity, independently enforced employee roles, staff skill and shift scheduling, actual business setup, and operational testing.
-
-Online payments, refunds, WhatsApp/SMS delivery, tax invoicing, loyalty balances, recurring memberships, automated campaigns, multi-branch operations, automatic material consumption, and multi-guest booking are not implemented. Marketing records are drafts only. Prices, staff names, and opening inventory are editable examples; bookings and revenue start empty. The app must not claim tax compliance or exclusive features relative to established vendors.
+The public site is a working demonstration, not a fully launched commercial salon system. Example services/prices/team are editable. Payment processing, refunds, SMS/WhatsApp, tax invoicing, independent employee roles, loyalty balances, recurring memberships and shift qualification rules are not implemented. Staff currently use the owner-authorized preview. Bookings are now shared across visitors rather than isolated per visitor.
 
 ## Verification
-- Production build and TypeScript check.
-- `tests/booking-flow.py`: local HTTP integration tests cover unauthenticated access, validation, concurrent double booking, resource conflict across staff, cleaning buffer, persistence, server-authoritative pricing, cancellation/release, payments, state transitions, inventory validation, and all three routes.
-- No browser visual/interaction testing was requested or performed.
-- Optional imperative WebMCP tool `start_spa_booking` stages the same booking dialog; unsupported browsers skip it. No supported WebMCP validation context was available, so registration/execution is unverified.
+`tests/public-flow.py` covers anonymous catalog and booking, owner-only management, field filtering, collisions, server pricing, shared dashboard read-back, receipt-token isolation and status synchronization. It also checks server-rendered customer pages have no administration link. `tests/booking-flow.py` covers the management booking lifecycle. Production and static customer builds and TypeScript checking are run locally.
+
+No browser visual/interaction testing was requested. WebMCP `start_spa_booking` is feature-detected but no supported validation context was available.
 
 ## Sources
 Reviewed September 9, 2026:
