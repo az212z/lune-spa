@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {createDemoStore,DEMO_KEY} from '../lib/demo-store.mjs';
+const saved=new Map();const storage={getItem:k=>saved.get(k),setItem:(k,v)=>saved.set(k,v)};
+const seed=()=>({version:1,records:[{kind:'service',id:'s',name:'مساج',duration:60,price:280,room:'room1'},{kind:'staff',id:'e',name:'دانة'}],bookings:[]});
+const admin=createDemoStore(seed,storage),employee=createDemoStore(seed,storage),otherBrowser=createDemoStore(seed,{getItem:()=>null,setItem:()=>{}});
+let calls=0;globalThis.fetch=()=>{calls++;throw new Error('Demo must never call live APIs')};
+const b=await admin.request({action:'book',name:'عميلة تجريبية',phone:'0500000000',date:'2026-12-01',time:'14:00',staff:'e',serviceIds:['s'],preferences:{quiet:true},total:1});
+assert.equal(b.total,280);assert.equal(employee.get().bookings[0].id,b.id);assert.equal(otherBrowser.get().bookings.length,0);
+await assert.rejects(admin.request({action:'book',name:'أخرى',phone:'0500000000',date:'2026-12-01',time:'14:15',staff:'e',serviceIds:['s']}));
+await employee.request({action:'status',id:b.id,status:'arrived'});assert.equal(admin.get().bookings[0].status,'arrived');
+await employee.request({action:'status',id:b.id,status:'completed'});assert.equal(admin.get().bookings[0].status,'completed');
+await admin.request({action:'pay',id:b.id});assert.equal(employee.get().bookings[0].paid,280);
+await assert.rejects(admin.request({action:'pay',id:b.id}));
+assert(saved.has(DEMO_KEY));admin.reset();assert.equal(employee.get().bookings.length,0);assert.equal(calls,0);
+console.log('PASS: isolated demo, shared local views, server-independent booking, price, conflict, status, payment, reset; zero network calls.');

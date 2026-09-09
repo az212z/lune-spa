@@ -40,3 +40,10 @@ Reviewed September 9, 2026:
 
 Spa stock photo, illustrative rather than an actual venue photo:
 https://unsplash.com/photos/indoor-swimming-pool-with-lounge-chairs-and-large-window-ekBaPA2eN2Q (standard Unsplash free license).
+
+## Public sales demos
+- `/demo/admin`: public interactive management demo.
+- `/demo/staff`: public interactive employee demo.
+- `/demo/book`: separate customer demo with no admin links.
+
+These pages use only synthetic data in a namespaced browser-local demo store. They never read or mutate live salon APIs. The same browser's views share demo changes through local storage and storage events; different browsers have independent demos. A reset button restores examples. The live `/admin` and `/staff` remain owner-protected. `tests/demo-store.mjs` verifies demo isolation, local synchronization, booking collisions, pricing, state transitions, payments and reset with zero network calls. Static output includes all demo paths for optional future private-repository GitHub Pages support; current public demos are hosted on Sites.
